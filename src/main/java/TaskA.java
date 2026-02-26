@@ -35,6 +35,7 @@ public class TaskA {
             //set the key to the hobby and the value to 1
             hobby.set(attr[targetColumn]);
 
+
             //This is where we set the key value pair
             context.write(hobby, one);
         }
@@ -74,6 +75,10 @@ public class TaskA {
         
         //Set the mapper class
         job.setMapperClass(TaskAMapper.class);
+
+        //Set the combiner class
+        //We can just use the reducer as the combiner here
+        job.setCombinerClass(TaskAReducer.class);
         
         //Set the reducer class
         job.setReducerClass(TaskAReducer.class);

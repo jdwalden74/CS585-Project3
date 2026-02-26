@@ -1,26 +1,23 @@
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
+import java.util.HashSet;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
 
-
+//Currently WRONG!!!!
 public class TaskE {
 
 
-     //Mapper class for Task B
-    public static class TaskEMapper extends Mapper<Object, Text, IntWritable, Text> {
+     //Mapper class for Task E
+    public static class TaskEMapper extends Mapper<Object, Text, IntWritable, IntWritable> {
         
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             
@@ -30,37 +27,38 @@ public class TaskE {
 
             if(attr[0].equals("ActionId")) return;
 
-            //Write to the reducer the id of the account that did the action
-            context.write(new IntWritable(Integer.parseInt(attr[1])), new Text("viewed"));
-
-            //Write to the reducer the id of the account that was acted upon
-            context.write(new IntWritable(Integer.parseInt(attr[2])), new Text("pageViewed"));
-            
+            //Write to the reducer the id of the account that did the action, and what page
+            context.write(new IntWritable(Integer.parseInt(attr[1])), new IntWritable(Integer.parseInt(attr[2])));
         }
     }
 
     //Reducer class for Task B
-    public static class TaskEReducer extends Reducer<IntWritable,Text,IntWritable,Text> {
+    public static class TaskEReducer extends Reducer<IntWritable,IntWritable,IntWritable,Text> { 
 
-        public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+        public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
             
-            IntWritable actions = new IntWritable(0);
-            IntWritable pageViewed = new IntWritable(0);
+            //Have an array of seen pageID's, if its in the array skip it in unique but still count as an access
+            HashSet<Integer> seenPages = new HashSet<>();
+            
+            int actions = 0;
+            int uniquePages = 0;
 
             //Iterate through the values
-            for (Text val : values) {
+            for (IntWritable val : values) {
 
-                if(val.toString().equals("viewed")) {
-                    actions.set(actions.get() + 1);
-                }
+                actions++;
+                int pageId = val.get();
 
-                if(val.toString().equals("pageViewed")) {
-                    pageViewed.set(pageViewed.get() + 1);
+                
+                // Only increment uniquePages if not seen before
+                if (!seenPages.contains(pageId)) {
+                    seenPages.add(pageId);
+                    uniquePages++;
                 }
             }
 
             //This is where we write the key value pair
-            context.write(key, new Text(actions.toString() + ", " + pageViewed.toString()));   
+            context.write(key, new Text(actions + ", " + uniquePages));   
         }
     }
 
@@ -79,6 +77,9 @@ public class TaskE {
         
         //Set the reducer class
         job.setReducerClass(TaskEReducer.class);
+
+        job.setMapOutputKeyClass(IntWritable.class);
+        job.setMapOutputValueClass(IntWritable.class);
 
         //Set the output key and value classes
         //This is where you set the data types for the key and value output

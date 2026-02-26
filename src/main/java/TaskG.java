@@ -55,8 +55,6 @@ public class TaskG {
                 }
             }
         }
-            
-
         
         private IntWritable id = new IntWritable();
         private IntWritable time = new IntWritable();
@@ -80,7 +78,6 @@ public class TaskG {
             
         }
     }
-
 
     public static void main(String[] args) throws Exception {
 

@@ -1,132 +1,53 @@
-import java.io.DataInput;
-import java.io.DataOutput;
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.PriorityQueue;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
 
+// Originally create a custom tuple class to store the data in a structured way
+//But now it's optimized for the reducer
 
 public class TaskB {
 
-    //This is a helper class to store the data in a structured way
-    public static class DataTuple implements Writable {
+    private static class UserRecord implements Comparable<UserRecord> {
+        int userId;
+        String nickname;
+        String jobTitle;
+        int count;
 
-        private Text filename;
-        private IntWritable count;
-        private Text NickName;
-        private Text JobTitle;
-        
-        //MAKE THEM ALWAYS FILL EVERY FIELD EVEN WHEN NOT INPUT
-        public DataTuple(){
-            this.count = new IntWritable();
-            this.NickName = new Text();
-            this.JobTitle = new Text();
-
-            //empty field
-            this.filename = new Text();
-        }
-        
-        //For summing up counts from activity 
-        public DataTuple(Text filename, IntWritable count    ){
-            this.filename = filename;
-            this.count = count;
-
-            //empty fields
-            this.NickName = new Text();
-            this.JobTitle = new Text();
-        }
-
-        //For joining with the User data
-        public DataTuple(Text filename, Text NickName, Text JobTitle){
-            this.filename = filename;
-            this.NickName = NickName;
-            this.JobTitle = JobTitle;
-
-            //empty field
-            this.count = new IntWritable();
-        }
-
-        @Override
-        public void write(DataOutput out) throws IOException {
-            filename.write(out);
-            NickName.write(out);
-            JobTitle.write(out);
-            count.write(out);
-        }
-
-        @Override
-        public void readFields(DataInput in) throws IOException {
-            filename.readFields(in);
-            NickName.readFields(in);
-            JobTitle.readFields(in);
-            count.readFields(in);
-        }
-
-        public void setFilename(Text filename){
-            this.filename = filename;
-        }
-
-        public void setCount(IntWritable count){
+        public UserRecord(int userId, String nickname, String jobTitle, int count) {
+            this.userId = userId;
+            this.nickname = nickname;
+            this.jobTitle = jobTitle;
             this.count = count;
         }
 
-        public void setNickName(Text NickName){
-            this.NickName = NickName;
+        @Override
+        public int compareTo(UserRecord other) {
+            return Integer.compare(this.count, other.count);
         }
-
-        public void setJobTitle(Text JobTitle){
-            this.JobTitle = JobTitle;
-        }   
-
-        public Text getFilename(){
-            return this.filename;
-        }
-
-        public IntWritable getCount(){
-            return this.count;
-        }
-
-        public Text getNickName(){
-            return this.NickName;
-        }
-
-        public Text getJobTitle(){
-            return this.JobTitle;
-        }
-
     }
 
      //Mapper class for Task B
-    public static class TaskBMapper extends Mapper<Object, Text, Text, DataTuple> {
+    public static class TaskBMapper extends Mapper<Object, Text, IntWritable, IntWritable> {
 
-        //This wills tore the filename, which will allow us to join
-        //in the reducer
-        private Text filename;
-
-        @Override
-        protected void setup(Context context) throws IOException, InterruptedException {
-            FileSplit fileSplit = (FileSplit) context.getInputSplit();
-            filename = new Text(fileSplit.getPath().getName());
-        }
         
         private final static IntWritable one = new IntWritable(1);
-        private Text id = new Text();
-        private Text nickname = new Text();
-        private Text jobTitle = new Text();
-        
+        private IntWritable id = new IntWritable();
         //This is the ID column for accessed page
         private int targetColumn_Activity = 2; 
-        private int targetColumn_User = 0;
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             
@@ -134,83 +55,111 @@ public class TaskB {
             String line = value.toString();
             String[] attr = line.split(",");
 
-            //Check if the file is the User file
-            if(filename.toString().equals("accounts.csv")){
-                 //Make sure we skip the header
-                if(attr[targetColumn_User].equals("id")) return;
+            //Make sure we skip the header
+            if(attr[targetColumn_Activity].equals("WhatPage")) return;
 
-                //set the key to the page and the nickname and job title
-                id.set(attr[targetColumn_User]);
-                nickname.set(attr[targetColumn_User + 1]);
-                jobTitle.set(attr[targetColumn_User + 2]);
+            //set the key to the page
+            id.set(Integer.parseInt(attr[targetColumn_Activity]));
 
-                //create the data tuple
-                DataTuple data = new DataTuple(filename, nickname, jobTitle);
-
-                //This is where we set the key value pair
-                context.write(id, data);
-
-                return;
-            }   
-
-            //Check if the file is the Activity file
-            if(filename.toString().equals("activity.csv")){
-
-                //Make sure we skip the header
-                if(attr[targetColumn_Activity].equals("WhatPage")) return;
-
-                //set the key to the page and the value to 1
-                id.set(attr[targetColumn_Activity]);
-
-                //create the data tuple
-                DataTuple data = new DataTuple(filename, one);
-
-                //This is where we set the key value pair
-                context.write(id, data);
-
-                return;
-            } else {
-                throw new IOException("Unknown file: " + filename);
-            }
-            
-        }
+            //This is where we set the key value pair
+            context.write(id, one);
+        }   
     }
 
     //Reducer class for Task B
-    public static class TaskBReducer extends Reducer<Text,DataTuple,Text,Text> {
+    public static class TaskBReducer extends Reducer<IntWritable,IntWritable,IntWritable,Text> {
 
-        public void reduce(Text key, Iterable<DataTuple> values, Context context) throws IOException, InterruptedException {
+        //HashMap to store user ID and nickname
+        private Map<Integer, String[]> users = new HashMap<>();
+
+        private PriorityQueue<UserRecord> topUsers = new PriorityQueue<>(10);
+
+        //Reducer side join
+        @Override
+        protected void setup(Context context) throws IOException, InterruptedException {
+
+            //Get the cached file
+            java.net.URI[] cacheFiles = context.getCacheFiles();
+
+            if (cacheFiles != null && cacheFiles.length > 0) {
+
+                // Extract the local filename from the URI
+                String localFileName = new Path(cacheFiles[0].getPath()).getName(); 
+
+                //Read the file
+                try (BufferedReader reader = new BufferedReader(new FileReader(localFileName))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        String[] parts = line.split(",");
+
+                        //Skip header
+                        if (parts[0].equals("id"))
+                            continue;
+                        
+                        int userId = Integer.parseInt(parts[0]);
+                        String nickname = parts[1];
+                        String jobTitle = parts[2];
+                        users.put(userId, new String[]{nickname, jobTitle});
+                    }
+                }
+            }
+        }
+
+
+        public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
             
             String nickName = "";
             String jobTitle = "";
             int sum = 0;
 
             //Iterate through the values
-
-            for (DataTuple val : values) {
-                if(val.getFilename().toString().equals("activity.csv")){
-                    sum += val.getCount().get();
-                } else if(val.getFilename().toString().equals("accounts.csv")){
-                    nickName = val.getNickName().toString();
-                    jobTitle = val.getJobTitle().toString();
-                }
+            for (IntWritable val : values) {
+                sum += val.get();
             }
 
-            // Create a fresh tuple for output
-            DataTuple outputTuple = new DataTuple();
-            outputTuple.setCount(new IntWritable(sum));
-            outputTuple.setNickName(new Text(nickName));
-            outputTuple.setJobTitle(new Text(jobTitle));
+            //Get the nickname and job title from the hashmap
+            nickName = users.get(key.get())[0];
+            jobTitle = users.get(key.get())[1];
 
-            // Always output all fields
-            context.write(
-                key,
-                new Text(
-                    nickName + "\t" + jobTitle + "\t" + sum
-                )
-            );
+            //Create a new record
+            UserRecord record = new UserRecord(key.get(), nickName, jobTitle, sum);
+
+            //Check if the queue is full
+            if (topUsers.size() < 10) {
+                topUsers.add(record);
+            } else if (record.compareTo(topUsers.peek()) > 0) {
+
+                //If the current record is greater than the smallest record in the queue
+                //Remove the smallest record and add the current record
+                topUsers.poll();
+                topUsers.add(record);
+            }
+        }
+
+        //Once all of the data has been aggregated, we can output only the top 10
+        //all of which will be in the priority queue
+        @Override
+        protected void cleanup(Context context) throws IOException, InterruptedException {
+            while (!topUsers.isEmpty()) {
+                UserRecord record = topUsers.poll();
+                context.write(
+                    new IntWritable(record.userId),
+                    new Text(record.nickname + "\t" + record.jobTitle + "\t" + record.count)
+                );
+            }
         }
     }
+
+    public static class TaskBCombiner extends Reducer<IntWritable,IntWritable,IntWritable,IntWritable> {
+
+        public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+            int sum = 0;
+            for (IntWritable val : values) {
+                sum += val.get();
+            }
+            context.write(key, new IntWritable(sum));
+        }
+    }   
 
     //Main method
     public static void main(String[] args) throws Exception {
@@ -224,26 +173,34 @@ public class TaskB {
         
         //Set the mapper class
         job.setMapperClass(TaskBMapper.class);
+
+        //set the combiner class
+        job.setCombinerClass(TaskBCombiner.class);
         
         //Set the reducer class
         job.setReducerClass(TaskBReducer.class);
 
+        //Set the number of reduce tasks
+        //This will allow us to get only the top 10
+        job.setNumReduceTasks(1);
+
+        //Add the cache file
+        //This is where we add the accounts.csv file to the reducer
+        job.addCacheFile(new Path("/assignment1/accounts.csv").toUri());
+
         //Set the output key and value classes
         //This is where you set the data types for the key and value output
-        job.setOutputKeyClass(Text.class);
+        job.setOutputKeyClass(IntWritable.class);
         job.setOutputValueClass(Text.class);
 
         //Set the map output key and value classes
-        job.setMapOutputKeyClass(Text.class);
-        job.setMapOutputValueClass(DataTuple.class);
+        job.setMapOutputKeyClass(IntWritable.class);
+        job.setMapOutputValueClass(IntWritable.class);
         
         //Set the input and output paths
         //This is where you set the input and output paths
-        FileInputFormat.addInputPath(job, new Path("/assignment1/accounts.csv"));
         FileInputFormat.addInputPath(job, new Path("/assignment1/activity.csv"));
         FileOutputFormat.setOutputPath(job, new Path(args[0]));
-
-        
         
         //Run the job
         System.exit(job.waitForCompletion(true) ? 0 : 1);

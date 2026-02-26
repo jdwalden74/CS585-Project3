@@ -1,1 +1,5 @@
 dataset-generator/*
+target/*
+.vscode/*
+.cursor/*
+bin/*

@@ -41,11 +41,12 @@ public class TaskF {
     //Reducer to get avg followers for all accounts
     public static class Sum_Followers_Reducer extends Reducer<IntWritable,IntWritable,IntWritable,  IntWritable> {
         
-        //be using an enumand writing to context we can skip having to use an "average" map reduce job
+        //be using an enum and writing to context we can skip having to use an "average" map reduce job
         enum Stats{
             totalFollowers,
             users;
         }
+
         public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
             
 
