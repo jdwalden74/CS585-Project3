@@ -1,4 +1,4 @@
-## Project 1 - CS503
+## Project 3 - CS503
 
 Make sure you install hadoop on your local machine before running this program.
 Make sure you install maven frist to manage the dependencies.
@@ -17,7 +17,7 @@ run 'ssh -p 14226 ds503@localhost' to get into the docker container.
 
 ## To run a specific task
                                                         //TaskA                     /output
-run 'hadoop jar Project1-CS503-1.0-SNAPSHOT.jar {task to run} {Dataset/s} {output directory}' to run the program.   
+run 'hadoop jar Project3-CS503-1.0-SNAPSHOT.jar {task to run} {Dataset/s} {output directory}' to run the program.   
 
 ## Check output
  run 'hdfs dfs -cat {output directory}/*' to check the output.
