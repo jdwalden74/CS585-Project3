@@ -11,7 +11,8 @@ import org.apache.spark.ml.Pipeline
 spark-submit \
   --class Task2_6 \
   --master "local[2]" \
-  --driver-memory 2g \
+  --packages com.johnsnowlabs.nlp:spark-nlp_2.12:6.3.3,com.amazonaws:aws-java-sdk-bundle:1.11.828 \
+  --driver-memory 4g \
   --executor-memory 6g \
   --conf "spark.memory.fraction=0.6" \
   --conf "spark.memory.storageFraction=0.5" \

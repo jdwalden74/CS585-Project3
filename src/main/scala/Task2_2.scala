@@ -16,13 +16,13 @@ object Task2_2 {
     .option("multiLine", "true")
     .csv("hdfs://localhost:9000/proj3/data/Books_rating.csv")
 
-    // show both tables so I can at least see the headers
-    df.printSchema()
-
     //filter the dataframe
-    val filteredDF = df.filter(col("review/score").cast("double") > 4 && 
+    val filteredDF = df.filter(col("review/score").cast("double") >= 4 && 
     col("review/text").isNotNull && 
     length(col("review/text")) > 0)
+
+    // show both tables so I can at least see the headers
+    filteredDF.show(10)
 
     //write the filtered dataframe to a csv file in hdfs
     filteredDF.write
