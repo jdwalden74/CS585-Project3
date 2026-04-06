@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 TaskF$Sum_Followers_Reducer$Stats.class
 TaskD$TaskDCombiner.class
 TaskE$TaskEReducer.class
@@ -26,5 +25,3 @@ TaskA$TaskAMapper.class
 TaskB$TaskBCombiner.class
 TaskE$TaskEMapper.class
 TaskB.class
-=======
->>>>>>> dfe6ecb7d0ab39d5ba7a95a842eec5bfc6828434
