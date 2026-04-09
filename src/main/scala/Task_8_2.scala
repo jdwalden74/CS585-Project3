@@ -1,25 +1,13 @@
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import com.johnsnowlabs.nlp.pretrained.PretrainedPipeline
 import com.johnsnowlabs.nlp.base._      
 import com.johnsnowlabs.nlp.annotator._
 import com.johnsnowlabs.nlp.SparkNLP
 import org.apache.spark.ml.Pipeline
+import com.johnsnowlabs.nlp.pretrained.PretrainedPipeline
 
 
-/* 
-spark-submit \
-  --class Task2_6 \
-  --master "local[2]" \
-  --packages com.johnsnowlabs.nlp:spark-nlp_2.12:6.3.3,com.amazonaws:aws-java-sdk-bundle:1.11.828 \
-  --driver-memory 4g \
-  --executor-memory 6g \
-  --conf "spark.memory.fraction=0.6" \
-  --conf "spark.memory.storageFraction=0.5" \
-  /home/ds503/proj3/Project1-CS503-1.0-SNAPSHOT.jar
-*/
-
-object Task2_6 {
+object Task2_8_2 {
   def main(args: Array[String]): Unit = {
 
     val spark = SparkNLP.start()
@@ -41,8 +29,7 @@ object Task2_6 {
         col("Id"),
         col("review/text").alias("text")
       )
-      .filter(col("text").isNotNull) 
-      .limit(100) 
+      .filter(col("text").isNotNull).limit(50000)
 
     // DocumentAssembler 
     val documentAssembler = new DocumentAssembler()
@@ -83,8 +70,16 @@ object Task2_6 {
     val model = pipeline.fit(allReviews)
     val result = model.transform(allReviews)
 
-    result.select("Id", "lemma.result").show(10, truncate = false)
-    println("Task 2.6 complete.")
+    val wordCounts = result.select(explode(col("lemma.result")).alias("word"))
+        .filter(length(col("word")) > 2) // Filter out tiny words/punctuation
+        .groupBy("word")
+        .count()
+        .orderBy(desc("count"))
+
+    // Show the top 20 most frequent words
+    wordCounts.show(20)
+    
+    println("Task 2.8_2 complete.")
     
     // Stop the session
     spark.stop()

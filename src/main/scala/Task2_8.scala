@@ -18,7 +18,7 @@ spark-submit \
   /home/ds503/proj3/Project1-CS503-1.0-SNAPSHOT.jar
 */
 
-object Task2_7 {
+object Task2_8 {
   def main(args: Array[String]): Unit = {
 
     val spark = SparkNLP.start()
@@ -38,10 +38,11 @@ object Task2_7 {
     // Create a test dataframe
    val allReviews = df.select(
         col("Id"),
+        col("Title"),
+        col("review/score").alias("score"),
         col("review/text").alias("text")
       )
-      .filter(col("text").isNotNull) 
-      .limit(100) 
+      .filter(col("text").isNotNull).limit(100000)
 
     // Document Assembler
     val documentAssembler = new DocumentAssembler()
@@ -64,51 +65,59 @@ object Task2_7 {
         .setInputCols(Array("normalized"))
         .setOutputCol("cleanTokens")
 
-    // Lemmatizer
-    val lemmatizer = LemmatizerModel.pretrained("lemma_antbnc", "en")
-        .setInputCols(Array("cleanTokens"))
-        .setOutputCol("lemma")
-
-    // Language Detector
-    val languageDetector = LanguageDetectorDL.pretrained("ld_wiki_tatoeba_cnn_21", "xx")
-    .setInputCols(Array("document"))
-    .setOutputCol("language")
-
-    // Part of Speech Tagger
-    val posTagger = PerceptronModel.pretrained("pos_anc", "en")
-    .setInputCols(Array("document", "token"))
-    .setOutputCol("pos")
 
     // Sentiment Analysis
     val sentiment = ViveknSentimentModel.pretrained("sentiment_vivekn", "en")
         .setInputCols(Array("document", "cleanTokens"))
         .setOutputCol("sentiment")
 
-    // Combine everything into one pipeline
     val pipeline = new Pipeline().setStages(Array(
         documentAssembler, 
         tokenizer, 
         normalizer, 
-        stopWords, 
-        lemmatizer, 
-        languageDetector,
-        posTagger,
+        stopWords,  
         sentiment
     ))
 
-    // Fit the pipeline to the data
     val model = pipeline.fit(allReviews)
     val result = model.transform(allReviews)
 
-    // Select the results
-    result.select(
-      col("Id"), 
-      expr("sentiment.result[0]").alias("sentiment"),
-      expr("language.result[0]").alias("language"),
-      expr("pos.result").alias("pos")
-    ).show(10)
+    // Extract labels and keep the score for avg
+    val cleanDF = result.select(
+      col("Title"),
+      col("score"),
+      expr("sentiment.result[0]").alias("sentiment_label")
+    ).persist()
+
+    // Get Total Reviews and Average Score per Title
+    val baseStats = cleanDF.groupBy("Title")
+      .agg(
+        count("*").alias("total_reviews"),
+        avg("score").alias("avg_review_score")
+      )
+
+    // Get Positive Reviews per Title
+    val positivesPerTitle = cleanDF.filter(col("sentiment_label") === "positive")
+      .groupBy("Title")
+      .agg(count("*").alias("positive_count"))
+
+    // Join them together
+    // Use a left join so books with 0 positive reviews aren't deleted from results
+    val finalStats = baseStats.join(positivesPerTitle, Seq("Title"), "left")
+      .na.fill(0, Seq("positive_count")) // Turn nulls into 0
+      .withColumn("percent_positive", (col("positive_count") / col("total_reviews")) * 100)
+
+    // Final Select and Show
+    finalStats.select(
+        col("Title"), 
+        col("total_reviews"), 
+        col("positive_count"), 
+        round(col("percent_positive"), 2).alias("percent_pos"),
+        round(col("avg_review_score"), 2).alias("avg_score")
+      )
+      .show(20)
     
-    println("Task 2.7 complete.")
+    println("Task 2.8 complete.")
     
     // Stop the session
     spark.stop()

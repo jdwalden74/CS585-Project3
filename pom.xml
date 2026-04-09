@@ -12,7 +12,7 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <scala.version>2.12.18</scala.version>
-        <spark.version>3.3.0</spark.version>
+        <spark.version>3.0.3</spark.version>
     </properties>
 
     <dependencies>
@@ -35,11 +35,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/com.johnsnowlabs.nlp/spark-nlp -->
         <dependency>
             <groupId>com.johnsnowlabs.nlp</groupId>
             <artifactId>spark-nlp_2.12</artifactId>
-            <version>5.5.1</version>
+            <version>6.3.3</version>
         </dependency>
+       
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-mllib_2.12</artifactId>
